@@ -66,12 +66,12 @@ public class Compressor {
         fileName = filePath.substring(last + 1);
         pathPrefix = filePath.substring(0, last + 1);
 
-        FileInputStream in = null;
+        BufferedInputStream in = null;
         int total = 0;
         try {
-            in = new FileInputStream(filePath);
+            in = new BufferedInputStream(new FileInputStream(filePath));
 
-            byte[] buf = new byte[1024];
+            byte[] buf = new byte[1024 * 10];
             int left;
             while((left = in.read(buf)) > 0){
                 // 统计字符出现频率
@@ -141,19 +141,16 @@ public class Compressor {
     }
 
     public void doCompression(String filePath){
-        long start = System.currentTimeMillis();
-
-
-        FileInputStream in = null;
-        FileOutputStream out = null;
+        BufferedInputStream in = null;
+        BufferedOutputStream out = null;
         try {
-            in = new FileInputStream(filePath);
+            in = new BufferedInputStream(new FileInputStream(filePath));
 
             String outputFile = pathPrefix + fileName + ".k";
             File file = new File(outputFile);
             if(!file.exists())
                 file.createNewFile();
-            out = new FileOutputStream(file);
+            out = new BufferedOutputStream(new FileOutputStream(file));
 
 //             format:
 //             magic total lengthOfEncodeTable EncodeTable lengthOfCompressedData CompressedData
@@ -171,9 +168,6 @@ public class Compressor {
             writeCompressedData(out, in);
 
             out.flush();
-
-            long end = System.currentTimeMillis();
-            System.out.println("write bits cost: " + (end - start) + "ms");
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         } catch (IOException e) {
@@ -192,26 +186,31 @@ public class Compressor {
         }
     }
 
-    private void writeFre(FileOutputStream out) throws IOException {
+    private void writeFre(BufferedOutputStream out) throws IOException {
         for(int i = 0;i < 256;i++) {
             writeInt(out, frequency[i]);
         }
     }
 
-    private void writeCompressedData(FileOutputStream out, FileInputStream in) throws IOException {
+    private void writeCompressedData(BufferedOutputStream out, BufferedInputStream in) throws IOException {
+        long start = System.currentTimeMillis();
         byte[] buf = new byte[1024];
         int left;
 
-        String codes = "";
+        StringBuilder sb = new StringBuilder(100000);
         while((left = in.read(buf)) > 0){
             for(int i = 0;i < left;i++){
-                codes += encodeTable.get(buf[i]);
+                sb.append(encodeTable.get(buf[i]));
             }
         }
+        String codes = sb.toString();
+
+        long end1 = System.currentTimeMillis();
+        System.out.println("make codes cost: " + (end1 - start) + "ms");
+
         totalCompressedBits = codes.length();
         System.out.println("totalCompressedBits:" + totalCompressedBits + ", Bytes: " + totalCompressedBits / 8 + ", bits: " + totalCompressedBits % 32);
         writeInt(out, totalCompressedBits);
-
 
         int i;
         for(i = 0;i + 4 * MOD <= totalCompressedBits;i += 4 * MOD){
@@ -220,8 +219,11 @@ public class Compressor {
         if(i < totalCompressedBits){
             writeBits(out, codes.substring(i), totalCompressedBits - i);
         }
+
+        long end2 = System.currentTimeMillis();
+        System.out.println("make compressedData cost: " + (end2 - end1) + "ms");
     }
-    private void writeBits(FileOutputStream out, String bits, int len) throws IOException {
+    private void writeBits(BufferedOutputStream out, String bits, int len) throws IOException {
         int to_write = 0;
         for(int i = 0;i < 32;i++){
             int bit;
@@ -229,13 +231,13 @@ public class Compressor {
                 bit = 0;
             else
                 bit = bits.charAt(i) - '0';
-            to_write |= ((1 & bit) << (32 - i - 1)) ;
+            to_write |= ((1 & bit) << (32 - i - 1));
         }
 
         writeInt(out, to_write);
     }
 
-    public static void writeInt(FileOutputStream out, int v) throws IOException {
+    public static void writeInt(BufferedOutputStream out, int v) throws IOException {
         byte[] buf = new byte[4];
         buf[0] = (byte) ((v >>> 24) & 0xFF);
         buf[1] = (byte) ((v >>> 16) & 0xFF);
