@@ -21,4 +21,7 @@ public class App
         Decompressor decompressor = new Decompressor();
         decompressor.deCompress("data/goupi.txt.k");
     }
+//             压缩文件的格式：魔数 + 源文件大小 + 频率表大小 + 频率表 + 压缩后数据大小（bit） + 压缩后的数据
+//             magic total lengthOfFreTable freTable lengthOfCompressedData CompressedData
+//              1B     4B        4B               xB             4B                   xB
 }
