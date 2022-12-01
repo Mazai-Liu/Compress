@@ -8,6 +8,7 @@ public class App
         Compressor compressor = new Compressor();
         compressor.compress("data/goupi.txt");
 
+        System.out.println("\nDecompress:");
         Decompressor decompressor = new Decompressor();
         decompressor.deCompress("data/goupi.txt.k");
     }

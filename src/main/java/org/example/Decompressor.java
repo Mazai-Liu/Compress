@@ -26,6 +26,7 @@ public class Decompressor {
     // magic total lengthOfEncodeTable EncodeTable lengthOfCompressedData CompressedData
     //  1B     4B        4B               xB             4B                   xB
 
+
     public Decompressor(){
 
     }
@@ -40,31 +41,40 @@ public class Decompressor {
         System.out.println("deCompress cost time: " + (end - start) + "ms");
     }
 
-    private void process(FileInputStream in) {
-        FileOutputStream out = null;
+    private void process(BufferedInputStream in) {
+        BufferedOutputStream out = null;
         try {
             File file = new File(pathPrefix + "k" + fileName);
             if(!file.exists())
                 file.createNewFile();
-            out = new FileOutputStream(file);
+            out = new BufferedOutputStream(new FileOutputStream(file));
 
-            byte[] buf = new byte[1];
-            int solved = 0;
+            byte[] buf = new byte[1024];
+            byte[] buf_out = new byte[1024 * 12];
+            int solved = 0, left, out_count = 0;
             TNode cur = root;
-            while(in.read(buf) > 0){
-                byte b = buf[0];
-                for(int i = Math.min(7, compressedDataLength - solved);i >= 0;i--){
-                    if(((b >> i) & 1) == 0)
-                        cur = cur.left;
-                    else
-                        cur = cur.right;
-                    if(cur.isLeaf){
-                        out.write(cur.value);
-                        cur = root;
+            while((left = in.read(buf)) > 0){
+                for(int j = 0;j < left;j++){
+                    byte b = buf[j];
+                    for(int i = Math.min(7, compressedDataLength - solved);i >= 0;i--){
+                        if(((b >> i) & 1) == 0)
+                            cur = cur.left;
+                        else
+                            cur = cur.right;
+                        if(cur.isLeaf){
+                            buf_out[out_count++] = cur.value;
+                            if(out_count == (1024 * 12)) {
+                                out.write(buf_out);
+                                out_count = 0;
+                            }
+                            cur = root;
+                        }
+                        solved ++;
                     }
-                    solved ++;
                 }
             }
+            if(out_count != 0)
+                out.write(buf_out, 0, out_count);
             out.flush();
             System.out.println("solved bits: " + solved);
         } catch (FileNotFoundException e) {
@@ -91,9 +101,11 @@ public class Decompressor {
         fileName = filePath.substring(last + 1);
         pathPrefix = filePath.substring(0, last + 1);
 
-        FileInputStream in = null;
+        BufferedInputStream in = null;
         try {
-            in = new FileInputStream(filePath);
+            long start = System.currentTimeMillis();
+
+            in = new BufferedInputStream(new FileInputStream(filePath));
             byte[] magic = new byte[1];
             in.read(magic);
             if(magic[0] != 'k'){
@@ -106,14 +118,20 @@ public class Decompressor {
 
             // 读取频率表
             readFre(in);
+            long end1 = System.currentTimeMillis();
+            System.out.println("make frequencyTable cost: " + (end1 - start) + "ms");
 
             // 构建哈弗曼树
             makeHuffman();
+            long end2 = System.currentTimeMillis();
+            System.out.println("make tree cost: " + (end2 - end1) + "ms");
 
             compressedDataLength = readInt(in);
 
             // 按哈弗曼树解压
             process(in);
+            long end3 = System.currentTimeMillis();
+            System.out.println("make decompress cost: " + (end3 - end2) + "ms");
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);
         } catch (IOException e) {
@@ -149,12 +167,12 @@ public class Decompressor {
         root = queue.poll();
     }
 
-    private void readFre(FileInputStream in) throws IOException {
+    private void readFre(BufferedInputStream in) throws IOException {
         for(int i = 0;i < tableLength;i++)
             frequency[i] = readInt(in);
     }
 
-    public int readInt(FileInputStream in) throws IOException {
+    public int readInt(BufferedInputStream in) throws IOException {
         byte[] buf = new byte[4];
         in.read(buf);
         int res = 0;
@@ -164,4 +182,13 @@ public class Decompressor {
                 (buf[3] & 0xFF));
         return res;
     }
+
+//    public int bsToI(byte[] bytes) throws IOException {
+//        int res = 0;
+//        res |=  (((bytes[0] & 0xFF) << 24) |
+//                ((bytes[1] & 0xFF) << 16) |
+//                ((bytes[2] & 0xFF) << 8) |
+//                (bytes[3] & 0xFF));
+//        return res;
+//    }
 }
