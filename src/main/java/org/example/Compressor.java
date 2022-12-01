@@ -17,7 +17,8 @@ public class Compressor {
      *
      * 128~255是无符号的表示，有符号的8位byte只能表示-128~127.
      *
-     * OFFSET作为，值为负数的字节的偏移量。
+     * OFFSET作为，值为负数的字节的偏移量，通过OFFSET可以支持中文。
+     * 通过测试发现java用连续三个负数编码来表示汉字
      */
     public static final int OFFSET = 128;
 
@@ -78,8 +79,8 @@ public class Compressor {
                 for(int i = 0;i < left;i++)
                     frequency[buf[i] + OFFSET]++;
                 total += left;
-                ORIGIN_TOTAL = total;
             }
+            ORIGIN_TOTAL = total;
         }catch (IOException e){
             e.printStackTrace();
         }finally {
@@ -96,6 +97,9 @@ public class Compressor {
         System.out.println("make frequencyTable cost: " + (end - start) + "ms");
     }
 
+    /**
+     * 构造哈弗曼树
+     */
     public void makeHuffman(){
         long start = System.currentTimeMillis();
 
@@ -123,6 +127,9 @@ public class Compressor {
         System.out.println("make tree cost: " + (end - start) + "ms");
     }
 
+    /**
+     * 递归构造编码表
+     */
     public void makeCodeTable(){
         long start = System.currentTimeMillis();
         dfs(root, "");
@@ -140,6 +147,10 @@ public class Compressor {
         dfs(root.right, code + "1");
     }
 
+    /**
+     * 压缩实现
+     * @param filePath
+     */
     public void doCompression(String filePath){
         BufferedInputStream in = null;
         BufferedOutputStream out = null;
@@ -152,8 +163,8 @@ public class Compressor {
                 file.createNewFile();
             out = new BufferedOutputStream(new FileOutputStream(file));
 
-//             format:
-//             magic total lengthOfEncodeTable EncodeTable lengthOfCompressedData CompressedData
+//             压缩文件的格式：魔数 + 源文件大小 + 频率表大小 + 频率表 + 压缩后数据大小（bit） + 压缩后的数据
+//             magic total lengthOfFreTable freTable lengthOfCompressedData CompressedData
 //              1B     4B        4B               xB             4B                   xB
             out.write(MAGIC);
             writeInt(out, ORIGIN_TOTAL);
@@ -203,6 +214,7 @@ public class Compressor {
                 sb.append(encodeTable.get(buf[i]));
             }
         }
+        // 要写入的bit位的01串
         String codes = sb.toString();
 
         long end1 = System.currentTimeMillis();
@@ -223,6 +235,15 @@ public class Compressor {
         long end2 = System.currentTimeMillis();
         System.out.println("make compressedData cost: " + (end2 - end1) + "ms");
     }
+
+    /**
+     * 用来写入bit位。
+     * 最后一次可能出现不足32位的情况，用0补齐。（不能不管，因为我是从左往右填充，即高位往低位。不管的话，高位会被补0，而不是低位）
+     * @param out 输出流
+     * @param bits 要写的01串
+     * @param len 01串的长度
+     * @throws IOException
+     */
     private void writeBits(BufferedOutputStream out, String bits, int len) throws IOException {
         int to_write = 0;
         for(int i = 0;i < 32;i++){
@@ -237,6 +258,13 @@ public class Compressor {
         writeInt(out, to_write);
     }
 
+    /**
+     * 不能直接 write(int x)。虽然x是一个4字节的int，但只会只写入x的最后一字节。
+     * 所以需要封装一个方法，真正写入4字节。通过位运算不断取v的8位填充到字节数组中。
+     * @param out 输出流
+     * @param v 要写入的整形值
+     * @throws IOException
+     */
     public static void writeInt(BufferedOutputStream out, int v) throws IOException {
         byte[] buf = new byte[4];
         buf[0] = (byte) ((v >>> 24) & 0xFF);

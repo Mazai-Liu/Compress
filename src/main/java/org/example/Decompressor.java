@@ -26,12 +26,9 @@ public class Decompressor {
     // magic total lengthOfEncodeTable EncodeTable lengthOfCompressedData CompressedData
     //  1B     4B        4B               xB             4B                   xB
 
-
     public Decompressor(){
 
     }
-
-
     public void deCompress(String filePath){
         long start = System.currentTimeMillis();
 
@@ -96,24 +93,28 @@ public class Decompressor {
     }
 
     public void readHead(String filePath){
-        this.filePath = filePath;
-        int last = filePath.lastIndexOf("/");
-        fileName = filePath.substring(last + 1);
-        pathPrefix = filePath.substring(0, last + 1);
+        this.filePath = filePath.substring(0, filePath.length() - 2);
+        int last = this.filePath.lastIndexOf("/");
+        fileName = this.filePath.substring(last + 1);
+        pathPrefix = this.filePath.substring(0, last + 1);
 
         BufferedInputStream in = null;
         try {
             long start = System.currentTimeMillis();
 
             in = new BufferedInputStream(new FileInputStream(filePath));
+            // 魔数
             byte[] magic = new byte[1];
             in.read(magic);
             if(magic[0] != 'k'){
                 System.out.println("file format error!");
                 System.exit(-1);
             }
+
+            // 总大小
             checkTotalByte = readInt(in);
 
+            // 频率表长
             tableLength = readInt(in);
 
             // 读取频率表
@@ -128,7 +129,7 @@ public class Decompressor {
 
             compressedDataLength = readInt(in);
 
-            // 按哈弗曼树解压
+            // 根据哈弗曼树解压
             process(in);
             long end3 = System.currentTimeMillis();
             System.out.println("make decompress cost: " + (end3 - end2) + "ms");
@@ -172,6 +173,12 @@ public class Decompressor {
             frequency[i] = readInt(in);
     }
 
+    /**
+     * 读取四个字节并且组装为int
+     * @param in
+     * @return
+     * @throws IOException
+     */
     public int readInt(BufferedInputStream in) throws IOException {
         byte[] buf = new byte[4];
         in.read(buf);
